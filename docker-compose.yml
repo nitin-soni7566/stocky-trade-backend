@@ -1,0 +1,52 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/intraday_trading
+      REDIS_URL: redis://redis:6379/0
+      ENABLE_LIVE_TRADING: ${ENABLE_LIVE_TRADING:-false}
+      DEFINEDGE_TRADING_BASE_URL: ${DEFINEDGE_TRADING_BASE_URL:-https://integrate.definedgesecurities.com/dart/v1}
+      DEFINEDGE_AUTH_BASE_URL: ${DEFINEDGE_AUTH_BASE_URL:-https://signin.definedgesecurities.com/auth/realms/debroking/dsbpkc}
+      DEFINEDGE_DATA_BASE_URL: ${DEFINEDGE_DATA_BASE_URL:-https://data.definedgesecurities.com/sds}
+      DEFINEDGE_WS_URL: ${DEFINEDGE_WS_URL:-wss://trade.definedgesecurities.com/NorenWSTRTP/}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: intraday_trading
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d intraday_trading"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
